@@ -196,7 +196,7 @@ export default function HomePage() {
           <CardContent>
             <div className="space-y-3 w-full">
               {lowStockProducts.map((product) => (
-                <div key={product.Id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg gap-2 w-full">
+                <div key={product.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg gap-2 w-full">
                   <div className="min-w-0 flex-1">
                     <p className="font-medium truncate">{product.nombre}</p>
                     <p className="text-sm text-gray-500 truncate">{product.codigo}</p>
@@ -245,15 +245,15 @@ export default function HomePage() {
                   </TableHeader>
                   <TableBody>
                     {recentVentas.map((venta) => (
-                      <TableRow key={venta.Id}>
+                      <TableRow key={venta.id}>
                         <TableCell className="hidden sm:table-cell font-medium">
-                          {venta.Id}
+                          {venta.id}
                         </TableCell>
                         <TableCell>
                           <div className="min-w-0">
-                            <p className="font-medium sm:hidden">Venta #{venta.Id}</p>
+                            <p className="font-medium sm:hidden">Venta #{venta.id}</p>
                             <p className="text-sm sm:text-base truncate">
-                              {venta.cliente ? venta.cliente.apellidoYnombre : 'Cliente no disponible'}
+                              {venta.cliente ? venta.cliente.razon_social : 'Cliente no disponible'}
                             </p>
                             <p className="text-xs text-gray-500 sm:hidden">{formatCurrency(venta.totalVenta)}</p>
                           </div>
@@ -302,7 +302,7 @@ export default function HomePage() {
                 </TableHeader>
                 <TableBody>
                   {recentMovements.map((movement) => (
-                    <TableRow key={movement.Id}>
+                    <TableRow key={movement.id}>
                       <TableCell className="hidden sm:table-cell font-medium">
                         {movement.producto?.nombre || 'Producto no disponible'}
                       </TableCell>

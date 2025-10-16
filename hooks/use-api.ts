@@ -3,6 +3,7 @@ import { apiService, ApiService } from '@/lib/api-service';
 import { ApiError } from '@/lib/api-config';
 import {
   Usuario,
+  CrearUsuarioDTO,
   Producto,
   Cliente,
   Venta,
@@ -312,7 +313,7 @@ export function useUsuarios() {
   const cargarUsuarios = () => execute(() => apiService.obtenerUsuarios());
   const cargarUsuariosPorSucursal = (sucursal: string) => 
     execute(() => apiService.obtenerUsuariosPorSucursal(sucursal));
-  const crearUsuario = (usuario: Omit<Usuario, 'Id'>) => execute(() => apiService.crearUsuario(usuario));
+  const crearUsuario = (usuario: CrearUsuarioDTO) => execute(() => apiService.crearUsuario(usuario as any));
   const editarUsuario = (usuario: Usuario) => execute(() => apiService.editarUsuario(usuario));
 
   return {

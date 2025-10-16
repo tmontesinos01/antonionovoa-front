@@ -246,9 +246,14 @@ export default function FacturacionPage() {
                         {formatCurrency((invoice as any).total || 0)}
                       </TableCell>
                       <TableCell>
-                        <Badge className={invoiceStatusColors[(invoice as any).estadoFactura?.codigo || 'draft']}>
-                          {getStatusLabel((invoice as any).estadoFactura?.codigo || 'draft')}
-                        </Badge>
+                        {(() => {
+                          const statusCode = (invoice as any).estadoFactura?.codigo || 'draft';
+                          return (
+                            <Badge className={invoiceStatusColors[statusCode as keyof typeof invoiceStatusColors]}>
+                              {getStatusLabel(statusCode)}
+                            </Badge>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell>
                         <div className="flex space-x-2">

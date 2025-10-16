@@ -24,6 +24,13 @@ export interface Usuario extends EntidadBase {
   idPerfil: number;
 }
 
+export interface CrearUsuarioDTO {
+  nombre: string;
+  correo: string;
+  clave: string;
+  idPerfil: number;
+}
+
 // ==================== PRODUCTOS ====================
 export interface Producto extends EntidadBase {
   idCategoria: number;
@@ -139,6 +146,17 @@ export interface PdfVentaResponse {
   idVenta: number;
   pdfUrl: string;
   mensaje: string;
+}
+
+export interface FacturaResponse {
+  error: string;
+  rta: string;
+  cae: string;
+  vencimiento_cae: string;
+  comprobante_nro: string;
+  comprobante_nro_completo: string;
+  punto_venta: string;
+  pdf: string;
 }
 
 // ==================== STOCK ====================
@@ -257,7 +275,7 @@ export interface FacturaDTO {
 }
 
 export interface StockMovimiento {
-  Id: number;
+  id: number;
   idProducto: number;
   idTipoMovimiento: number;
   tipo: 'ENTRADA' | 'SALIDA';
@@ -281,7 +299,7 @@ export interface NuevoMovimientoDTO {
 }
 
 export interface EstadoFactura {
-  Id: number;
+  id: number;
   nombre: string;
   descripcion?: string;
   activo: boolean;
@@ -289,7 +307,7 @@ export interface EstadoFactura {
 }
 
 export interface TipoFactura {
-  Id: number;
+  id: number;
   codigo: string;
   nombre: string;
   descripcion?: string;
@@ -298,7 +316,7 @@ export interface TipoFactura {
 }
 
 export interface Sucursal {
-  Id: number;
+  id: number;
   nombre: string;
   direccion: string;
   telefono: string;
@@ -309,7 +327,7 @@ export interface Sucursal {
 }
 
 export interface AlicuotaIVA {
-  Id: number;
+  id: number;
   porcentaje: number;
   descripcion: string;
   activa: boolean;
@@ -322,7 +340,7 @@ export interface ActualizarEstados {
 }
 
 export interface EventoLog {
-  Id: number;
+  id: number;
   idUsuario: number;
   accion: string;
   modulo: string;

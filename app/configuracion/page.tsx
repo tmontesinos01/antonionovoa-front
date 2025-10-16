@@ -69,11 +69,11 @@ export default function ConfiguracionPage() {
         nombre: formData.nombre,
         correo: formData.correo,
         clave: formData.clave,
-        telefono: formData.telefono,
+        // telefono: formData.telefono,
         idPerfil: parseInt(formData.idPerfil),
-        activo: true,
-        sucursal: formData.sucursal,
-        ultimoAcceso: null
+        // activo: true,
+        // sucursal: formData.sucursal,
+        // ultimoAcceso: null
       })
       
       setSuccess(true)
@@ -223,14 +223,14 @@ export default function ConfiguracionPage() {
               {errorUsuarios && <p className="text-sm text-red-600">Error: {errorUsuarios}</p>}
 
               {usuarios && usuarios.map(user => (
-                <div key={user.Id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg gap-2">
+                <div key={user.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg gap-2">
                   <div>
                     <p className="font-medium truncate max-w-xs">{user.nombre}</p>
                     <p className="text-sm text-gray-500 truncate max-w-xs">{user.correo}</p>
                   </div>
-                  <Badge variant={user.activo ? 'outline' : 'secondary'}>
+                  {/* <Badge variant={user.activo ? 'outline' : 'secondary'}>
                     {user.activo ? 'Activo' : 'Inactivo'}
-                  </Badge>
+                  </Badge> */}
                 </div>
               ))}
 

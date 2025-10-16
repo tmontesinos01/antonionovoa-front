@@ -59,11 +59,21 @@ export class ApiService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    if (!this.baseUrl) {
+    // Verificar que baseUrl esté definida
+    const baseUrl = this.baseUrl || API_CONFIG.BASE_URL;
+    
+    if (!baseUrl) {
+      console.error('[API Service] BASE_URL no configurada:', {
+        'this.baseUrl': this.baseUrl,
+        'API_CONFIG.BASE_URL': API_CONFIG.BASE_URL,
+        'process.env.NEXT_PUBLIC_API_URL': process.env.NEXT_PUBLIC_API_URL
+      });
       throw new ApiError(0, 'URL de API no configurada. Verifica la variable NEXT_PUBLIC_API_URL');
     }
 
-    const url = `${this.baseUrl}${endpoint}`;
+    const url = `${baseUrl}${endpoint}`;
+    console.log('[API Service] Request:', { url, endpoint, baseUrl });
+    
     const config: RequestInit = {
       headers: this.buildHeaders(),
       mode: 'cors',
@@ -82,6 +92,7 @@ export class ApiService {
       const data = await handleApiResponse<T>(response);
       return data;
     } catch (error) {
+      console.error('[API Service] Error:', error);
       if (error instanceof ApiError) {
         throw error;
       }

@@ -1,6 +1,6 @@
 // Configuración de la API
 export const API_CONFIG = {
-  BASE_URL: process.env.NEXT_PUBLIC_API_URL,
+  BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'https://antonionovoa-api-907905751249.us-central1.run.app',
   TIMEOUT: 10000, // 10 segundos
   HEADERS: {
     'Content-Type': 'application/json',

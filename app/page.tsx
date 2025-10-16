@@ -19,7 +19,7 @@ import {
 } from "lucide-react"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import Link from "next/link"
-import { useProductos, useClientes, useVentas, useStock } from "@/hooks/use-api"
+import { useProductos, /* useClientes, */ useVentas, useStock } from "@/hooks/use-api"
 
 export default function HomePage() {
   const router = useRouter()
@@ -27,7 +27,7 @@ export default function HomePage() {
 
   // Hooks para obtener datos de la API
   const { productos, loading: loadingProductos, error: errorProductos, cargarProductos } = useProductos()
-  const { clientes, loading: loadingClientes, error: errorClientes, cargarClientes } = useClientes()
+  // const { clientes, loading: loadingClientes, error: errorClientes, cargarClientes } = useClientes()
   const { ventas, loading: loadingVentas, error: errorVentas, cargarVentas } = useVentas()
   const { movimientos, loading: loadingMovimientos, error: errorMovimientos, cargarMovimientosPorFecha } = useStock()
 
@@ -42,7 +42,7 @@ export default function HomePage() {
   useEffect(() => {
     if (user) {
       cargarProductos()
-      cargarClientes()
+      // cargarClientes() // Funcionalidad de clientes deshabilitada temporalmente
       cargarVentas()
       
       // Cargar movimientos de los últimos 30 días
@@ -78,7 +78,8 @@ export default function HomePage() {
 
   // Calcular estadísticas
   const totalProducts = productos?.length || 0
-  const totalClients = clientes?.length || 0
+  // const totalClients = clientes?.length || 0 // Funcionalidad de clientes deshabilitada
+  const totalClients = 0 // Temporalmente en 0
   const totalVentas = ventas?.length || 0
   const totalRevenue = ventas?.reduce((sum, venta) => sum + venta.totalVenta, 0) || 0
   
@@ -88,7 +89,7 @@ export default function HomePage() {
   const recentVentas = ventas?.slice(0, 5) || []
   const recentMovements = movimientos?.slice(0, 5) || []
 
-  const isLoading = loadingProductos || loadingClientes || loadingVentas || loadingMovimientos
+  const isLoading = loadingProductos || /* loadingClientes || */ loadingVentas || loadingMovimientos
 
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full max-w-full">
@@ -112,12 +113,12 @@ export default function HomePage() {
       </div>
 
       {/* Mostrar errores si existen */}
-      {(errorProductos || errorClientes || errorVentas || errorMovimientos) && (
+      {(errorProductos || /* errorClientes || */ errorVentas || errorMovimientos) && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <h3 className="text-red-800 font-medium">Error al cargar datos</h3>
           <p className="text-red-600 text-sm mt-1">
             {errorProductos && `Productos: ${errorProductos}`}
-            {errorClientes && `Clientes: ${errorClientes}`}
+            {/* errorClientes && `Clientes: ${errorClientes}` */}
             {errorVentas && `Ventas: ${errorVentas}`}
             {errorMovimientos && `Movimientos: ${errorMovimientos}`}
           </p>
@@ -152,7 +153,8 @@ export default function HomePage() {
           </CardContent>
         </Card>
 
-        <Card>
+        {/* Tarjeta de Clientes - Funcionalidad deshabilitada temporalmente */}
+        {/* <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Clientes</CardTitle>
             <Users className="h-4 w-4 text-purple-600" />
@@ -163,7 +165,7 @@ export default function HomePage() {
               Clientes registrados
             </p>
           </CardContent>
-        </Card>
+        </Card> */}
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

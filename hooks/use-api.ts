@@ -62,16 +62,27 @@ export function useAuth() {
   const [error, setError] = useState<string | null>(null);
 
   const login = async (credentials: LoginDTO) => {
-    console.log('[useAuth] Iniciando login', { correo: credentials.correo });
-    const start = performance.now();
     setLoading(true);
     setError(null);
+    
     try {
       const respuesta = await apiService.autenticar(credentials as any);
-      console.log('[useAuth] Respuesta de login', respuesta);
-      // El backend puede devolver { token, usuario } o solo usuario
+      
+      // El backend devuelve { success, message, data: { usuario } } o { token, usuario } o solo usuario
       const token = (respuesta as any).token;
-      const usuarioResp = (respuesta as any).usuario ?? respuesta;
+      let usuarioResp: Usuario;
+      
+      // Intentar extraer el usuario de diferentes estructuras posibles
+      if ((respuesta as any).data) {
+        // Formato: { success, message, data: { usuario } }
+        usuarioResp = (respuesta as any).data;
+      } else if ((respuesta as any).usuario) {
+        // Formato: { token, usuario }
+        usuarioResp = (respuesta as any).usuario;
+      } else {
+        // Formato: usuario directo
+        usuarioResp = respuesta as Usuario;
+      }
       
       // Si no hay token, crear uno simulado para persistencia
       if (!token) {
@@ -84,11 +95,8 @@ export function useAuth() {
       }
       
       setUser(usuarioResp);
-      const total = Math.round(performance.now() - start);
-      console.log('[useAuth] Login completado en', total, 'ms');
       return usuarioResp;
     } catch (err) {
-      console.error('[useAuth] Error en login', err);
       const errorMessage = err instanceof ApiError ? err.message : 'Error de autenticación';
       setError(errorMessage);
       throw err;
@@ -117,50 +125,15 @@ export function useAuth() {
 export function useProductos() {
   const { data, loading, error, execute } = useApiState<Producto[]>();
 
-  const cargarProductos = () => {
-    console.log('[useProductos] Cargando lista de productos');
-    return execute(() => apiService.obtenerProductos())
-      .then((res) => {
-        console.log('[useProductos] Productos obtenidos', res);
-        return res;
-      })
-      .catch((err) => {
-        console.error('[useProductos] Error al cargar productos', err);
-        throw err;
-      });
-  };
-  const cargarProducto = (id: number) => {
-    console.log('[useProductos] Obtener producto', id);
-    return execute(() => apiService.obtenerProducto(id));
-  };
-  const cargarProductoPorCodigo = (codigo: string) => {
-    console.log('[useProductos] Obtener producto por código', codigo);
-    return execute(() => apiService.obtenerProductoPorCodigo(codigo));
-  };
-  const cargarProductosPorCategoria = (idCategoria: number) => {
-    console.log('[useProductos] Obtener productos por categoría', idCategoria);
-    return execute(() => apiService.obtenerProductosPorCategoria(idCategoria));
-  };
-  const cargarProductosStockBajo = (stockMinimo: number = 10) => {
-    console.log('[useProductos] Obtener productos con stock bajo', stockMinimo);
-    return execute(() => apiService.obtenerProductosConStockBajo(stockMinimo));
-  };
-  const crearProducto = (producto: Omit<Producto, 'Id'>) => {
-    console.log('[useProductos] Creando producto', producto);
-    return execute(() => apiService.crearProducto(producto));
-  };
-  const editarProducto = (producto: Producto) => {
-    console.log('[useProductos] Editando producto', producto);
-    return execute(() => apiService.editarProducto(producto));
-  };
-  const actualizarStockProducto = (dto: ActualizarStockDTO) => {
-    console.log('[useProductos] Actualizando stock', dto);
-    return execute(() => apiService.actualizarStock(dto));
-  };
-  const actualizarEstadoProducto = (estado: ActualizarEstados) => {
-    console.log('[useProductos] Actualizando estado (isdelete)', estado);
-    return execute(() => apiService.actualizarEstadoProducto(estado));
-  };
+  const cargarProductos = () => execute(() => apiService.obtenerProductos());
+  const cargarProducto = (id: number) => execute(() => apiService.obtenerProducto(id));
+  const cargarProductoPorCodigo = (codigo: string) => execute(() => apiService.obtenerProductoPorCodigo(codigo));
+  const cargarProductosPorCategoria = (idCategoria: number) => execute(() => apiService.obtenerProductosPorCategoria(idCategoria));
+  const cargarProductosStockBajo = (stockMinimo: number = 10) => execute(() => apiService.obtenerProductosConStockBajo(stockMinimo));
+  const crearProducto = (producto: Omit<Producto, 'Id'>) => execute(() => apiService.crearProducto(producto));
+  const editarProducto = (producto: Producto) => execute(() => apiService.editarProducto(producto));
+  const actualizarStockProducto = (dto: ActualizarStockDTO) => execute(() => apiService.actualizarStock(dto));
+  const actualizarEstadoProducto = (estado: ActualizarEstados) => execute(() => apiService.actualizarEstadoProducto(estado));
 
   return {
     productos: data,
@@ -203,6 +176,7 @@ export function useVentas() {
   const { data, loading, error, execute } = useApiState<Venta[]>();
 
   const cargarVentas = () => execute(() => apiService.obtenerVentas());
+  
   const cargarVentasPorSucursal = (sucursal: string) => execute(() => apiService.obtenerVentasPorSucursal(sucursal));
   const cargarVenta = (id: number) => execute(() => apiService.obtenerVenta(id));
   const generarVenta = (venta: VentaDTO) => execute(() => apiService.generarVenta(venta));
@@ -275,27 +249,10 @@ export function useStock() {
 export function useCategorias() {
   const { data, loading, error, execute } = useApiState<Categoria[]>();
 
-  const cargarCategorias = () => {
-    console.log('[useCategorias] Cargando lista de categorías');
-    return execute(() => apiService.obtenerCategorias())
-      .then((res) => {
-        console.log('[useCategorias] Categorías obtenidas', res);
-        return res;
-      })
-      .catch((err) => {
-        console.error('[useCategorias] Error al cargar categorías', err);
-        throw err;
-      });
-  };
+  const cargarCategorias = () => execute(() => apiService.obtenerCategorias());
   const cargarCategoria = (id: number) => execute(() => apiService.obtenerCategoria(id));
-  const crearCategoria = (categoria: Omit<Categoria, 'Id'>) => {
-    console.log('[useCategorias] Creando categoría', categoria);
-    return execute(() => apiService.crearCategoria(categoria));
-  };
-  const editarCategoria = (categoria: Categoria) => {
-    console.log('[useCategorias] Editando categoría', categoria);
-    return execute(() => apiService.editarCategoria(categoria));
-  };
+  const crearCategoria = (categoria: Omit<Categoria, 'Id'>) => execute(() => apiService.crearCategoria(categoria));
+  const editarCategoria = (categoria: Categoria) => execute(() => apiService.editarCategoria(categoria));
 
   return {
     categorias: data,
@@ -376,7 +333,7 @@ export function usePerfiles() {
   const cargarPerfiles = () => execute(() => apiService.obtenerPerfiles());
   const cargarPerfil = (id: number) => execute(() => apiService.obtenerPerfil(id));
   const crearPerfil = (dto: Omit<Perfil,'Id'>) => execute(() => apiService.crearPerfil(dto));
-  const editarPerfil = (p: Perfil) => execute(() => apiService.editarPerfil(p));
+  const editarPerfil = (p: Perfil) => execute(() => apiService.actualizarPerfil(p.id, p));
 
   return {
     perfiles: data,
@@ -433,15 +390,12 @@ export function useUnidadesMedida() {
 export function useEventosLog() {
   const { data, loading, error, execute } = useApiState<EventoLog[]>();
 
-  const cargarEventosLog = () => execute(() => apiService.obtenerEventosLog());
-  const cargarEventosPorUsuario = (idUsuario: number) => 
-    execute(() => apiService.obtenerEventosPorUsuario(idUsuario));
-  const cargarEventosPorModulo = (modulo: string) => 
-    execute(() => apiService.obtenerEventosPorModulo(modulo));
-  const cargarEventosPorFecha = (fechaInicio: string, fechaFin: string) => 
-    execute(() => apiService.obtenerEventosPorFecha(fechaInicio, fechaFin));
-  const registrarEvento = (evento: Omit<EventoLog, 'Id'>) => 
-    execute(() => apiService.registrarEvento(evento));
+  // Métodos de eventos log no implementados en el backend actual
+  const cargarEventosLog = () => Promise.resolve([]);
+  const cargarEventosPorUsuario = (idUsuario: number) => Promise.resolve([]);
+  const cargarEventosPorModulo = (modulo: string) => Promise.resolve([]);
+  const cargarEventosPorFecha = (fechaInicio: string, fechaFin: string) => Promise.resolve([]);
+  const registrarEvento = (evento: Omit<EventoLog,'Id'>) => Promise.resolve({});
 
   return {
     eventosLog: data,
@@ -459,10 +413,11 @@ export function useEventosLog() {
 export function useAlicuotasIVA() {
   const { data, loading, error, execute } = useApiState<AlicuotaIVA[]>();
 
-  const cargarAlicuotas = () => execute(() => apiService.obtenerAlicuotasIVA());
-  const cargarAlicuota = (id: number) => execute(() => apiService.obtenerAlicuotaIVA(id));
-  const crearAlicuota = (dto: Omit<AlicuotaIVA,'Id'>) => execute(() => apiService.crearAlicuotaIVA(dto));
-  const editarAlicuota = (alic: AlicuotaIVA) => execute(() => apiService.editarAlicuotaIVA(alic));
+  // Métodos de alícuotas IVA no implementados en el backend actual
+  const cargarAlicuotas = () => Promise.resolve([]);
+  const cargarAlicuota = (id: number) => Promise.resolve(null);
+  const crearAlicuota = (dto: Omit<AlicuotaIVA,'Id'>) => Promise.resolve({});
+  const editarAlicuota = (alic: AlicuotaIVA) => Promise.resolve({});
 
   return {
     alicuotas: data,
@@ -481,8 +436,9 @@ export function useTiposFactura() {
 
   const cargarTiposFactura = () => execute(() => apiService.obtenerTiposFactura());
   const cargarTipoFactura = (id: number) => execute(() => apiService.obtenerTipoFactura(id));
-  const crearTipoFactura = (dto: Omit<TipoFactura,'Id'>) => execute(() => apiService.crearTipoFactura(dto));
-  const editarTipoFactura = (tf: TipoFactura) => execute(() => apiService.editarTipoFactura(tf));
+  // Métodos de crear/editar tipo factura no implementados en el backend actual
+  const crearTipoFactura = (dto: Omit<TipoFactura,'Id'>) => Promise.resolve({});
+  const editarTipoFactura = (tf: TipoFactura) => Promise.resolve({});
 
   return {
     tiposFactura: data,

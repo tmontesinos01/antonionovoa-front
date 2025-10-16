@@ -30,10 +30,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Verificar si hay un token guardado
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-    if (token) {
-      // Aquí podrías validar el token con el backend
-      // Por ahora, asumimos que si hay token, el usuario está autenticado
-      setUser({ Id: 1, nombre: 'Usuario', correo: 'usuario@example.com' } as Usuario)
+    const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null
+    
+    if (token && userData) {
+      try {
+        // Recuperar los datos del usuario desde localStorage
+        const parsedUser = JSON.parse(userData)
+        setUser(parsedUser)
+      } catch (error) {
+        console.error('Error al parsear datos del usuario:', error)
+        // Si hay error, limpiar el localStorage
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('token')
+          localStorage.removeItem('user')
+        }
+      }
     }
     
     setLoading(false)
@@ -45,6 +56,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const usuario = await loginHook(credentials)
       setUser(usuario)
+      // Guardar los datos del usuario en localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('user', JSON.stringify(usuario))
+      }
       return usuario
     } catch (error: any) {
       setError(error.message || 'Error de autenticación')
@@ -71,6 +86,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logoutHook()
     setUser(null)
     setError(null)
+    // Limpiar los datos del usuario de localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('user')
+    }
     router.push('/login')
   }
 

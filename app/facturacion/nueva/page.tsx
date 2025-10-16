@@ -32,11 +32,12 @@ import {
   Phone,
   Mail
 } from "lucide-react"
-import { mockProducts, mockClients } from "@/lib/mock-data"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { Product, Client, InvoiceItem, TusFacturasAppData } from "@/lib/types"
 import { serializeInvoiceForTusFacturasApp, validateTusFacturasAppData } from "@/lib/tus-facturas-app"
 import Link from "next/link"
+import { ApiService } from "@/lib/api-service"
+import type { Cliente as ClienteAfip, ValidarClienteAfipDTO, Producto } from "@/lib/api-types"
 
 interface InvoiceFormData {
   type: 'A' | 'B' | 'C' | 'NC'
@@ -92,31 +93,68 @@ export default function NuevaFacturaPage() {
 
   const [searchTerm, setSearchTerm] = useState("")
   const [searchType, setSearchType] = useState<'code' | 'name'>('code')
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [productos, setProductos] = useState<Producto[]>([])
+  const [filteredProducts, setFilteredProducts] = useState<Producto[]>([])
+  const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [discount, setDiscount] = useState(0)
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false)
   const [isClientDialogOpen, setIsClientDialogOpen] = useState(false)
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false)
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false)
+  const [clientSearch, setClientSearch] = useState({ documentType: '96', documentNumber: '' })
+  const [isSearchingClient, setIsSearchingClient] = useState(false)
+  const [clientSearchError, setClientSearchError] = useState('')
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false)
+  const apiService = new ApiService()
+
+  // Cargar productos al montar el componente
+  useEffect(() => {
+    const cargarProductos = async () => {
+      setIsLoadingProducts(true)
+      try {
+        const response: any = await apiService.obtenerProductos()
+        // El backend devuelve { success: true, data: [...] }
+        const productosData = response.data || []
+        setProductos(productosData)
+      } catch (error) {
+        console.error('Error al cargar productos:', error)
+        setProductos([])
+      } finally {
+        setIsLoadingProducts(false)
+      }
+    }
+    cargarProductos()
+  }, [])
 
   // Filtrar productos según búsqueda
   useEffect(() => {
+    console.log('🔍 Filtrado - searchTerm:', searchTerm)
+    console.log('🔍 Filtrado - searchType:', searchType)
+    console.log('🔍 Filtrado - productos disponibles:', productos.length)
+    
     if (searchTerm.trim() === '') {
+      console.log('❌ Search term vacío, limpiando filtros')
       setFilteredProducts([])
       return
     }
 
-    const filtered = mockProducts.filter(product => {
+    const filtered = productos.filter(product => {
       if (searchType === 'code') {
-        return product.code.toLowerCase().includes(searchTerm.toLowerCase())
+        const match = product.codigo.toLowerCase().includes(searchTerm.toLowerCase())
+        console.log(`  - Producto ${product.codigo}: ${match ? '✅ MATCH' : '❌ NO MATCH'}`)
+        return match
       } else {
-        return product.name.toLowerCase().includes(searchTerm.toLowerCase())
+        const match = product.nombre.toLowerCase().includes(searchTerm.toLowerCase())
+        console.log(`  - Producto ${product.nombre}: ${match ? '✅ MATCH' : '❌ NO MATCH'}`)
+        return match
       }
     })
+    
+    console.log('✅ Productos filtrados:', filtered.length)
+    console.log('📦 Productos filtrados:', filtered)
     setFilteredProducts(filtered)
-  }, [searchTerm, searchType])
+  }, [searchTerm, searchType, productos])
 
   // Calcular totales cuando cambian los items
   useEffect(() => {
@@ -140,7 +178,7 @@ export default function NuevaFacturaPage() {
   const handleAddProduct = () => {
     if (!selectedProduct) return
 
-    const existingItemIndex = formData.items.findIndex(item => item.productId === selectedProduct.id)
+    const existingItemIndex = formData.items.findIndex(item => item.productId === selectedProduct.id.toString())
     
     if (existingItemIndex >= 0) {
       // Actualizar cantidad si el producto ya existe
@@ -154,14 +192,14 @@ export default function NuevaFacturaPage() {
     } else {
       // Agregar nuevo item
       const newItem: InvoiceItem = {
-        productId: selectedProduct.id,
-        code: selectedProduct.code,
-        description: selectedProduct.name,
+        productId: selectedProduct.id.toString(),
+        code: selectedProduct.codigo,
+        description: selectedProduct.nombre,
         quantity,
-        unitPrice: selectedProduct.price,
+        unitPrice: selectedProduct.precio,
         iva: 21, // IVA por defecto
         discount,
-        total: (selectedProduct.price * quantity) - discount
+        total: (selectedProduct.precio * quantity) - discount
       }
       
       setFormData(prev => ({
@@ -170,10 +208,11 @@ export default function NuevaFacturaPage() {
       }))
     }
 
-    // Limpiar formulario
+    // Limpiar formulario y búsqueda
     setSelectedProduct(null)
     setQuantity(1)
     setDiscount(0)
+    setSearchTerm('') // Limpiar campo de búsqueda
     setIsProductDialogOpen(false)
   }
 
@@ -193,14 +232,52 @@ export default function NuevaFacturaPage() {
     setFormData(prev => ({ ...prev, items: updatedItems }))
   }
 
-  const handleClientSelect = (clientId: string) => {
-    const client = mockClients.find(c => c.id === clientId)
-    setFormData(prev => ({ 
-      ...prev, 
-      clientId,
-      client 
-    }))
-    setIsClientDialogOpen(false)
+  const handleSearchClient = async () => {
+    if (!clientSearch.documentNumber) {
+      setClientSearchError('Ingrese un número de documento')
+      return
+    }
+
+    setIsSearchingClient(true)
+    setClientSearchError('')
+
+    try {
+      const datos: ValidarClienteAfipDTO = {
+        documento_nro: clientSearch.documentNumber,
+        documento_tipo: clientSearch.documentType
+      }
+
+      const clienteAfip = await apiService.validarClienteAfip(datos)
+      
+      // Convertir el cliente de AFIP al formato local
+      const client: Client = {
+        id: clienteAfip.documento_nro,
+        businessName: clienteAfip.razon_social,
+        documentType: clienteAfip.documento_tipo === '96' ? 'CUIT' : 'DNI',
+        documentNumber: clienteAfip.documento_nro,
+        address: `${clienteAfip.direccion || ''}, ${clienteAfip.localidad || ''}`,
+        province: clienteAfip.provincia || '',
+        phone: '',
+        email: '',
+        createdAt: new Date(),
+        createdBy: '1',
+        updatedAt: new Date(),
+        updatedBy: '1'
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        clientId: client.id,
+        client
+      }))
+
+      setIsClientDialogOpen(false)
+      setClientSearch({ documentType: '96', documentNumber: '' })
+    } catch (error: any) {
+      setClientSearchError(error.message || 'Error al buscar cliente en AFIP')
+    } finally {
+      setIsSearchingClient(false)
+    }
   }
 
   const handleSaveInvoice = async () => {
@@ -296,11 +373,7 @@ export default function NuevaFacturaPage() {
     if (formData.client) {
       return formData.client.businessName
     }
-    if (formData.clientId) {
-      const client = mockClients.find(c => c.id === formData.clientId)
-      return client?.businessName || 'Cliente no encontrado'
-    }
-    return 'Seleccionar cliente'
+    return 'Buscar cliente'
   }
 
   const getInvoiceTypeLabel = (type: string) => {
@@ -512,26 +585,77 @@ export default function NuevaFacturaPage() {
                 <Dialog open={isClientDialogOpen} onOpenChange={setIsClientDialogOpen}>
                   <DialogTrigger asChild>
                     <Button variant="outline">
-                      {formData.clientId ? 'Cambiar Cliente' : 'Seleccionar Cliente'}
+                      {formData.clientId ? 'Cambiar Cliente' : 'Buscar Cliente'}
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="max-w-md">
                     <DialogHeader>
-                      <DialogTitle>Seleccionar Cliente</DialogTitle>
+                      <DialogTitle>Buscar Cliente en AFIP</DialogTitle>
+                      <DialogDescription>
+                        Ingrese el DNI o CUIT del cliente para validar sus datos
+                      </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                      {mockClients.map((client) => (
-                        <div
-                          key={client.id}
-                          className="p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
-                          onClick={() => handleClientSelect(client.id)}
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="documentType">Tipo de Documento</Label>
+                        <Select 
+                          value={clientSearch.documentType} 
+                          onValueChange={(value) => setClientSearch(prev => ({ ...prev, documentType: value }))}
                         >
-                          <p className="font-medium">{client.businessName}</p>
-                          <p className="text-sm text-gray-600">
-                            {client.documentType}: {client.documentNumber}
-                          </p>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="96">CUIT</SelectItem>
+                            <SelectItem value="80">CUIL</SelectItem>
+                            <SelectItem value="86">DNI</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="documentNumber">Número de Documento</Label>
+                        <Input
+                          id="documentNumber"
+                          placeholder="Ej: 20123456789"
+                          value={clientSearch.documentNumber}
+                          onChange={(e) => setClientSearch(prev => ({ ...prev, documentNumber: e.target.value }))}
+                          onKeyPress={(e) => e.key === 'Enter' && handleSearchClient()}
+                        />
+                      </div>
+                      {clientSearchError && (
+                        <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+                          <AlertCircle className="h-4 w-4" />
+                          <span>{clientSearchError}</span>
                         </div>
-                      ))}
+                      )}
+                      <div className="flex justify-end gap-2">
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            setIsClientDialogOpen(false)
+                            setClientSearch({ documentType: '96', documentNumber: '' })
+                            setClientSearchError('')
+                          }}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button 
+                          onClick={handleSearchClient}
+                          disabled={isSearchingClient}
+                        >
+                          {isSearchingClient ? (
+                            <>
+                              <Search className="h-4 w-4 mr-2 animate-spin" />
+                              Buscando...
+                            </>
+                          ) : (
+                            <>
+                              <Search className="h-4 w-4 mr-2" />
+                              Buscar
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   </DialogContent>
                 </Dialog>
@@ -552,9 +676,9 @@ export default function NuevaFacturaPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Búsqueda de productos */}
-              <div className="flex space-x-2">
-                <div className="flex-1">
-                  <div className="relative">
+              <div className="space-y-2">
+                <div className="flex space-x-2">
+                  <div className="flex-1 relative">
                     <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                     <Input
                       placeholder="Buscar productos por código o nombre..."
@@ -563,115 +687,112 @@ export default function NuevaFacturaPage() {
                       className="pl-10"
                     />
                   </div>
+                  <Select value={searchType} onValueChange={(value: any) => setSearchType(value)}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="code">Código</SelectItem>
+                      <SelectItem value="name">Nombre</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Select value={searchType} onValueChange={(value: any) => setSearchType(value)}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="code">Código</SelectItem>
-                    <SelectItem value="name">Nombre</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Dialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Agregar
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle>Agregar Producto</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      {/* Lista de productos filtrados */}
-                      <div className="max-h-60 overflow-y-auto border rounded-lg">
-                        {filteredProducts.length > 0 ? (
-                          <div className="divide-y">
-                            {filteredProducts.map((product) => (
-                              <div
-                                key={product.id}
-                                className={`p-3 cursor-pointer hover:bg-gray-50 ${
-                                  selectedProduct?.id === product.id ? 'bg-blue-50 border-blue-200' : ''
-                                }`}
-                                onClick={() => setSelectedProduct(product)}
-                              >
-                                <div className="flex justify-between items-start">
-                                  <div>
-                                    <p className="font-medium">{product.name}</p>
-                                    <p className="text-sm text-gray-600">Código: {product.code}</p>
-                                    <p className="text-sm text-gray-600">Stock: {product.stock}</p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="font-medium">{formatCurrency(product.price)}</p>
-                                    <Badge variant={product.stock > 0 ? "default" : "destructive"}>
-                                      {product.stock > 0 ? 'Disponible' : 'Sin stock'}
-                                    </Badge>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="p-4 text-center text-gray-500">
-                            {searchTerm ? 'No se encontraron productos' : 'Busca productos para agregar'}
-                          </div>
-                        )}
-                      </div>
 
-                      {/* Detalles del producto seleccionado */}
-                      {selectedProduct && (
-                        <div className="border rounded-lg p-4 space-y-4">
+                {/* Resultados de búsqueda */}
+                {searchTerm && filteredProducts.length > 0 && (
+                  <div className="border rounded-lg max-h-60 overflow-y-auto">
+                    <div className="divide-y">
+                      {filteredProducts.map((product) => (
+                        <div
+                          key={product.id}
+                          className="p-3 hover:bg-gray-50 cursor-pointer flex justify-between items-center"
+                          onClick={() => {
+                            setSelectedProduct(product)
+                            setIsProductDialogOpen(true)
+                          }}
+                        >
                           <div>
-                            <h4 className="font-medium mb-2">Producto Seleccionado</h4>
-                            <p className="text-sm text-gray-600">{selectedProduct.name}</p>
-                            <p className="text-sm text-gray-600">Código: {selectedProduct.code}</p>
+                            <p className="font-medium">{product.nombre}</p>
+                            <p className="text-sm text-gray-600">Código: {product.codigo}</p>
+                            <p className="text-sm text-gray-600">Stock: {product.stock}</p>
                           </div>
-                          
-                          <div className="grid grid-cols-3 gap-4">
-                            <div>
-                              <Label htmlFor="quantity">Cantidad</Label>
-                              <Input
-                                type="number"
-                                min="1"
-                                value={quantity}
-                                onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="unitPrice">Precio Unitario</Label>
-                              <Input
-                                type="number"
-                                value={selectedProduct.price}
-                                readOnly
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="discount">Descuento</Label>
-                              <Input
-                                type="number"
-                                min="0"
-                                value={discount}
-                                onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-                              />
-                            </div>
-                          </div>
-
-                          <div className="flex justify-end space-x-2">
-                            <Button variant="outline" onClick={() => setSelectedProduct(null)}>
-                              Cancelar
-                            </Button>
-                            <Button onClick={handleAddProduct}>
-                              Agregar Producto
-                            </Button>
+                          <div className="text-right">
+                            <p className="font-medium">{formatCurrency(product.precio)}</p>
+                            <Badge variant={product.stock > 0 ? "default" : "destructive"}>
+                              {product.stock > 0 ? 'Disponible' : 'Sin stock'}
+                            </Badge>
                           </div>
                         </div>
-                      )}
+                      ))}
                     </div>
-                  </DialogContent>
-                </Dialog>
+                  </div>
+                )}
+
+                {searchTerm && filteredProducts.length === 0 && (
+                  <div className="border rounded-lg p-4 text-center text-gray-500">
+                    No se encontraron productos
+                  </div>
+                )}
               </div>
+
+              {/* Diálogo para configurar producto */}
+              <Dialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen}>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Agregar Producto</DialogTitle>
+                  </DialogHeader>
+                  {selectedProduct && (
+                    <div className="space-y-4">
+                      <div>
+                        <h4 className="font-medium mb-2">Producto Seleccionado</h4>
+                        <p className="text-sm text-gray-600">{selectedProduct.nombre}</p>
+                        <p className="text-sm text-gray-600">Código: {selectedProduct.codigo}</p>
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <Label htmlFor="quantity">Cantidad</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={quantity}
+                            onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="unitPrice">Precio Unitario</Label>
+                          <Input
+                            type="number"
+                            value={selectedProduct.precio}
+                            readOnly
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="discount">Descuento</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={discount}
+                            onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end space-x-2">
+                        <Button variant="outline" onClick={() => {
+                          setSelectedProduct(null)
+                          setIsProductDialogOpen(false)
+                        }}>
+                          Cancelar
+                        </Button>
+                        <Button onClick={handleAddProduct}>
+                          Agregar Producto
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
 
               {/* Tabla de productos */}
               {formData.items.length > 0 && (
@@ -715,7 +836,9 @@ export default function NuevaFacturaPage() {
                             />
                           </TableCell>
                           <TableCell>
-                            <Select 
+                            <div className="text-sm font-medium">{item.iva}%</div>
+                            {/* Select para futuras mejoras */}
+                            {/* <Select 
                               value={item.iva.toString()} 
                               onValueChange={(value) => handleUpdateItem(index, 'iva', parseFloat(value))}
                             >
@@ -728,7 +851,7 @@ export default function NuevaFacturaPage() {
                                 <SelectItem value="21">21%</SelectItem>
                                 <SelectItem value="27">27%</SelectItem>
                               </SelectContent>
-                            </Select>
+                            </Select> */}
                           </TableCell>
                           <TableCell>
                             <Input

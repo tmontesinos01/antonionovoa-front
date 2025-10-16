@@ -5,23 +5,37 @@ import {
   Producto,
   Categoria,
   Cliente,
+  ValidarClienteAfipDTO,
+  GenerarVentaDTO,
   VentaDTO,
   Venta,
   FacturaDTO,
   Factura,
-  StockMovimiento,
+  EmitirNotaDTO,
+  NotaResponse,
+  PdfVentaResponse,
   MedioPago,
-  EstadoFactura,
-  TipoFactura,
+  Moneda,
+  TipoComprobante,
   Perfil,
   UnidadMedida,
-  ActualizarEstados,
-  EventoLog,
-  FacturaResponse,
+  Configuracion,
   ActualizarStockDTO,
-  Sucursal,
+  AjustarStockDTO,
+  AjustarStockResponse,
+  ProductoStockBajo,
+  ReporteStock,
+  ActualizarStockMinimoDTO,
+  ActualizarStockMinimoResponse,
+  ActualizarEstados,
+  StockMovimiento,
   NuevoMovimientoDTO,
-  AlicuotaIVA
+  EstadoFactura,
+  TipoFactura,
+  Sucursal,
+  EventoLog,
+  AlicuotaIVA,
+  ApiResponse
 } from './api-types';
 
 export class ApiService {
@@ -45,6 +59,10 @@ export class ApiService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
+    if (!this.baseUrl) {
+      throw new ApiError(0, 'URL de API no configurada. Verifica la variable NEXT_PUBLIC_API_URL');
+    }
+
     const url = `${this.baseUrl}${endpoint}`;
     const config: RequestInit = {
       headers: this.buildHeaders(),
@@ -53,23 +71,15 @@ export class ApiService {
       ...options,
     };
 
-    // Log clave del flujo de autenticación y de cualquier llamada a la API
-    console.log('[ApiService] Request', { url, options: config });
-
     try {
-      const startTime = performance.now();
       const response = await fetch(url, config);
-      const duration = Math.round(performance.now() - startTime);
-      // Registramos el resultado para inspección
-      console.log('[ApiService] Response', { url, status: response.status, durationMs: duration });
-      // Si la sesión expiró, podemos lanzar un error específico 401
+      
       if (response.status === 401) {
-        // Limpia token almacenado
         ApiService.setToken(null);
         if (typeof window !== 'undefined') localStorage.removeItem('token');
       }
+      
       const data = await handleApiResponse<T>(response);
-      console.log('[ApiService] Response data', { url, data });
       return data;
     } catch (error) {
       if (error instanceof ApiError) {
@@ -80,6 +90,7 @@ export class ApiService {
   }
 
   // ==================== AUTENTICACIÓN ====================
+  
   async autenticar(credentials: LoginDTO): Promise<Usuario> {
     return this.request<Usuario>('/usuarios/autenticar', {
       method: 'POST',
@@ -87,61 +98,21 @@ export class ApiService {
     });
   }
 
-  // ==================== USUARIOS ====================
-  async obtenerUsuarios(): Promise<Usuario[]> {
-    return this.request<Usuario[]>('/usuarios/obtener-todas');
-  }
-
-  async obtenerUsuario(id: number): Promise<Usuario> {
-    return this.request<Usuario>(`/usuarios/obtener/${id}`);
-  }
-
-  async obtenerUsuariosPorSucursal(sucursal: string): Promise<Usuario[]> {
-    return this.request<Usuario[]>(`/usuarios/obtener-por-sucursal/${sucursal}`);
-  }
-
-  async crearUsuario(usuario: Omit<Usuario, 'Id'>): Promise<Usuario> {
-    return this.request<Usuario>('/usuarios/nuevo', {
-      method: 'POST',
-      body: JSON.stringify(usuario),
-    });
-  }
-
-  async editarUsuario(usuario: Usuario): Promise<Usuario> {
-    return this.request<Usuario>('/usuarios/editar', {
-      method: 'POST',
-      body: JSON.stringify(usuario),
-    });
-  }
-
-  async actualizarEstadoUsuario(estado: ActualizarEstados): Promise<boolean> {
-    return this.request<boolean>('/usuarios/actualizar-estado', {
-      method: 'POST',
-      body: JSON.stringify(estado),
-    });
-  }
-
   // ==================== PRODUCTOS ====================
+  
+  async crearProducto(producto: Omit<Producto, 'id'>): Promise<ApiResponse<Producto>> {
+    return this.request<ApiResponse<Producto>>('/productos/crear', {
+      method: 'POST',
+      body: JSON.stringify(producto),
+    });
+  }
+
+  async obtenerProducto(id: number): Promise<ApiResponse<Producto>> {
+    return this.request<ApiResponse<Producto>>(`/productos/obtener/${id}`);
+  }
+
   async obtenerProductos(): Promise<Producto[]> {
     return this.request<Producto[]>('/productos/obtener-todos');
-  }
-
-  async obtenerProducto(id: number): Promise<Producto> {
-    return this.request<Producto>(`/productos/obtener/${id}`);
-  }
-
-  async crearProducto(producto: Omit<Producto, 'Id'>): Promise<Producto> {
-    return this.request<Producto>('/productos/nuevo', {
-      method: 'POST',
-      body: JSON.stringify(producto),
-    });
-  }
-
-  async editarProducto(producto: Producto): Promise<Producto> {
-    return this.request<Producto>('/productos/editar', {
-      method: 'POST',
-      body: JSON.stringify(producto),
-    });
   }
 
   async obtenerProductoPorCodigo(codigo: string): Promise<Producto> {
@@ -154,6 +125,13 @@ export class ApiService {
 
   async obtenerProductosConStockBajo(stockMinimo: number = 10): Promise<Producto[]> {
     return this.request<Producto[]>(`/productos/obtener-con-stock-bajo/${stockMinimo}`);
+  }
+
+  async editarProducto(producto: Producto): Promise<Producto> {
+    return this.request<Producto>('/productos/editar', {
+      method: 'POST',
+      body: JSON.stringify(producto),
+    });
   }
 
   async actualizarStock(datos: ActualizarStockDTO): Promise<boolean> {
@@ -170,7 +148,320 @@ export class ApiService {
     });
   }
 
+  // ==================== CONTROL DE STOCK ====================
+
+  async ajustarStock(id: number, datos: AjustarStockDTO): Promise<AjustarStockResponse> {
+    return this.request<AjustarStockResponse>(`/productos/ajustar-stock/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(datos),
+    });
+  }
+
+  async obtenerProductosStockBajo(): Promise<ApiResponse<ProductoStockBajo[]>> {
+    return this.request<ApiResponse<ProductoStockBajo[]>>('/productos/stock-bajo');
+  }
+
+  async obtenerReporteStock(): Promise<ApiResponse<ReporteStock>> {
+    return this.request<ApiResponse<ReporteStock>>('/productos/reporte-stock');
+  }
+
+  async actualizarStockMinimo(id: number, datos: ActualizarStockMinimoDTO): Promise<ActualizarStockMinimoResponse> {
+    return this.request<ActualizarStockMinimoResponse>(`/productos/actualizar-stock-minimo/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(datos),
+    });
+  }
+
+  // ==================== CATEGORÍAS ====================
+
+  async crearCategoria(categoria: Omit<Categoria, 'id'>): Promise<ApiResponse<Categoria>> {
+    return this.request<ApiResponse<Categoria>>('/categorias/crear', {
+      method: 'POST',
+      body: JSON.stringify(categoria),
+    });
+  }
+
+  async obtenerCategoria(id: number): Promise<ApiResponse<Categoria>> {
+    return this.request<ApiResponse<Categoria>>(`/categorias/obtener/${id}`);
+  }
+
+  async obtenerCategorias(): Promise<ApiResponse<Categoria[]>> {
+    return this.request<ApiResponse<Categoria[]>>('/categorias/obtener-todos');
+  }
+
+  async actualizarCategoria(id: number, categoria: Categoria): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/categorias/actualizar/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(categoria),
+    });
+  }
+
+  async eliminarCategoria(id: number): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/categorias/eliminar/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async actualizarEstadoCategoria(id: number): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/categorias/actualizar-estado/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== CONFIGURACIONES ====================
+
+  async crearConfiguracion(config: Omit<Configuracion, 'id'>): Promise<ApiResponse<Configuracion>> {
+    return this.request<ApiResponse<Configuracion>>('/configuraciones/crear', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    });
+  }
+
+  async obtenerConfiguracion(id: number): Promise<ApiResponse<Configuracion>> {
+    return this.request<ApiResponse<Configuracion>>(`/configuraciones/obtener/${id}`);
+  }
+
+  async obtenerConfiguraciones(): Promise<ApiResponse<Configuracion[]>> {
+    return this.request<ApiResponse<Configuracion[]>>('/configuraciones/obtener-todos');
+  }
+
+  async actualizarConfiguracion(id: number, config: Configuracion): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/configuraciones/actualizar/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    });
+  }
+
+  async eliminarConfiguracion(id: number): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/configuraciones/eliminar/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async actualizarEstadoConfiguracion(id: number): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/configuraciones/actualizar-estado/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== MEDIOS DE PAGO ====================
+
+  async crearMedioPago(medioPago: Omit<MedioPago, 'id'>): Promise<ApiResponse<MedioPago>> {
+    return this.request<ApiResponse<MedioPago>>('/mediospago/crear', {
+      method: 'POST',
+      body: JSON.stringify(medioPago),
+    });
+  }
+
+  async obtenerMedioPago(id: number): Promise<ApiResponse<MedioPago>> {
+    return this.request<ApiResponse<MedioPago>>(`/mediospago/obtener/${id}`);
+  }
+
+  async obtenerMediosPago(): Promise<ApiResponse<MedioPago[]>> {
+    return this.request<ApiResponse<MedioPago[]>>('/mediospago/obtener-todos');
+  }
+
+  async actualizarMedioPago(id: number, medioPago: MedioPago): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/mediospago/actualizar/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(medioPago),
+    });
+  }
+
+  async eliminarMedioPago(id: number): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/mediospago/eliminar/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async actualizarEstadoMedioPago(id: number): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/mediospago/actualizar-estado/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== MONEDAS ====================
+
+  async crearMoneda(moneda: Omit<Moneda, 'id'>): Promise<ApiResponse<Moneda>> {
+    return this.request<ApiResponse<Moneda>>('/monedas/crear', {
+      method: 'POST',
+      body: JSON.stringify(moneda),
+    });
+  }
+
+  async obtenerMoneda(id: number): Promise<ApiResponse<Moneda>> {
+    return this.request<ApiResponse<Moneda>>(`/monedas/obtener/${id}`);
+  }
+
+  async obtenerMonedas(): Promise<ApiResponse<Moneda[]>> {
+    return this.request<ApiResponse<Moneda[]>>('/monedas/obtener-todos');
+  }
+
+  async actualizarMoneda(id: number, moneda: Moneda): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/monedas/actualizar/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(moneda),
+    });
+  }
+
+  async eliminarMoneda(id: number): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/monedas/eliminar/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async actualizarEstadoMoneda(id: number): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/monedas/actualizar-estado/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== TIPOS DE COMPROBANTE ====================
+
+  async crearTipoComprobante(tipo: Omit<TipoComprobante, 'id'>): Promise<ApiResponse<TipoComprobante>> {
+    return this.request<ApiResponse<TipoComprobante>>('/tiposcomprobante/crear', {
+      method: 'POST',
+      body: JSON.stringify(tipo),
+    });
+  }
+
+  async obtenerTipoComprobante(id: number): Promise<ApiResponse<TipoComprobante>> {
+    return this.request<ApiResponse<TipoComprobante>>(`/tiposcomprobante/obtener/${id}`);
+  }
+
+  async obtenerTiposComprobante(): Promise<ApiResponse<TipoComprobante[]>> {
+    return this.request<ApiResponse<TipoComprobante[]>>('/tiposcomprobante/obtener-todos');
+  }
+
+  async actualizarTipoComprobante(id: number, tipo: TipoComprobante): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/tiposcomprobante/actualizar/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(tipo),
+    });
+  }
+
+  async eliminarTipoComprobante(id: number): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/tiposcomprobante/eliminar/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async actualizarEstadoTipoComprobante(id: number): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/tiposcomprobante/actualizar-estado/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== UNIDADES DE MEDIDA ====================
+
+  async crearUnidadMedida(unidad: Omit<UnidadMedida, 'id'>): Promise<ApiResponse<UnidadMedida>> {
+    return this.request<ApiResponse<UnidadMedida>>('/unidadesmedida/crear', {
+      method: 'POST',
+      body: JSON.stringify(unidad),
+    });
+  }
+
+  async obtenerUnidadMedida(id: number): Promise<ApiResponse<UnidadMedida>> {
+    return this.request<ApiResponse<UnidadMedida>>(`/unidadesmedida/obtener/${id}`);
+  }
+
+  async obtenerUnidadesMedida(): Promise<ApiResponse<UnidadMedida[]>> {
+    return this.request<ApiResponse<UnidadMedida[]>>('/unidadesmedida/obtener-todos');
+  }
+
+  async actualizarUnidadMedida(id: number, unidad: UnidadMedida): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/unidadesmedida/actualizar/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(unidad),
+    });
+  }
+
+  async eliminarUnidadMedida(id: number): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/unidadesmedida/eliminar/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async actualizarEstadoUnidadMedida(id: number): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/unidadesmedida/actualizar-estado/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== USUARIOS ====================
+
+  async crearUsuario(usuario: Omit<Usuario, 'id'>): Promise<ApiResponse<Usuario>> {
+    return this.request<ApiResponse<Usuario>>('/usuarios/crear', {
+      method: 'POST',
+      body: JSON.stringify(usuario),
+    });
+  }
+
+  async obtenerUsuario(id: number): Promise<ApiResponse<Usuario>> {
+    return this.request<ApiResponse<Usuario>>(`/usuarios/obtener/${id}`);
+  }
+
+  async obtenerUsuarios(): Promise<ApiResponse<Usuario[]>> {
+    return this.request<ApiResponse<Usuario[]>>('/usuarios/obtener-todos');
+  }
+
+  async actualizarUsuario(id: number, usuario: Usuario): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/usuarios/actualizar/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(usuario),
+    });
+  }
+
+  async eliminarUsuario(id: number): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/usuarios/eliminar/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async actualizarEstadoUsuario(id: number): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/usuarios/actualizar-estado/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== PERFILES ====================
+
+  async crearPerfil(perfil: Omit<Perfil, 'id'>): Promise<ApiResponse<Perfil>> {
+    return this.request<ApiResponse<Perfil>>('/perfiles/crear', {
+      method: 'POST',
+      body: JSON.stringify(perfil),
+    });
+  }
+
+  async obtenerPerfil(id: number): Promise<ApiResponse<Perfil>> {
+    return this.request<ApiResponse<Perfil>>(`/perfiles/obtener/${id}`);
+  }
+
+  async obtenerPerfiles(): Promise<ApiResponse<Perfil[]>> {
+    return this.request<ApiResponse<Perfil[]>>('/perfiles/obtener-todos');
+  }
+
+  async actualizarPerfil(id: number, perfil: Perfil): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/perfiles/actualizar/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(perfil),
+    });
+  }
+
+  async eliminarPerfil(id: number): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/perfiles/eliminar/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async actualizarEstadoPerfil(id: number): Promise<ApiResponse<void>> {
+    return this.request<ApiResponse<void>>(`/perfiles/actualizar-estado/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // ==================== SUCURSALES ====================
+  
   async obtenerSucursales(): Promise<Sucursal[]> {
     return this.request<Sucursal[]>('/sucursales/obtener-todas');
   }
@@ -193,7 +484,8 @@ export class ApiService {
     });
   }
 
-  // ==================== STOCK ====================
+  // ==================== STOCK (MOVIMIENTOS) ====================
+  
   async obtenerStockActual(idProducto: number): Promise<number> {
     return this.request<number>(`/stock/stock-actual/${idProducto}`);
   }
@@ -230,6 +522,7 @@ export class ApiService {
   }
 
   // ==================== VENTAS ====================
+  
   async obtenerVenta(id: number): Promise<Venta> {
     return this.request<Venta>(`/ventas/obtener/${id}`);
   }
@@ -264,61 +557,51 @@ export class ApiService {
   }
 
   // ==================== FACTURAS ====================
+  
   async obtenerFactura(id: number): Promise<Factura> {
-    return this.request<Factura>(`/facturas/obtener/${id}`);
+    return this.request<Factura>(`/factura/obtener/${id}`);
   }
 
   async obtenerFacturas(): Promise<Factura[]> {
-    return this.request<Factura[]>(`/facturas/obtener-todas`);
+    return this.request<Factura[]>(`/factura/obtener-todas`);
   }
 
   async generarFactura(factura: FacturaDTO): Promise<Factura> {
-    return this.request<Factura>('/facturas/nueva', {
+    return this.request<Factura>('/factura/nueva', {
       method: 'POST',
       body: JSON.stringify(factura),
     });
   }
 
   async editarFactura(factura: Factura): Promise<Factura> {
-    return this.request<Factura>('/facturas/editar', {
+    return this.request<Factura>('/factura/editar', {
       method: 'POST',
       body: JSON.stringify(factura),
     });
   }
 
   async cancelarFactura(estado: ActualizarEstados): Promise<boolean> {
-    return this.request<boolean>('/facturas/cancelar', {
+    return this.request<boolean>('/factura/cancelar', {
       method: 'POST',
       body: JSON.stringify(estado),
     });
   }
 
   async actualizarEstadoFactura(estado: ActualizarEstados): Promise<boolean> {
-    return this.request<boolean>('/facturas/actualizar-estado', {
+    return this.request<boolean>('/factura/actualizar-estado', {
       method: 'POST',
       body: JSON.stringify(estado),
     });
   }
 
   async sincronizarEstadoFactura(id: number): Promise<boolean> {
-    return this.request<boolean>(`/facturas/sincronizar-estado/${id}`, {
+    return this.request<boolean>(`/factura/sincronizar-estado/${id}`, {
       method: 'POST',
     });
   }
 
-  async obtenerEstadoTuFacturaApp(id: number): Promise<FacturaResponse> {
-    return this.request<FacturaResponse>(`/facturas/estado-tufacturaapp/${id}`);
-  }
-
-  async obtenerDatosNotaCredito(id: number): Promise<FacturaDTO> {
-    return this.request<FacturaDTO>(`/facturas/datos-nota-credito/${id}`);
-  }
-
-  async obtenerPrefijoNotaCredito(prefijo: string): Promise<string> {
-    return this.request<string>(`/facturas/prefijo-nota-credito/${prefijo}`);
-  }
-
   // ==================== CLIENTES ====================
+  
   async obtenerClientes(): Promise<Cliente[]> {
     return this.request<Cliente[]>('/clientes/obtener-todos');
   }
@@ -341,22 +624,8 @@ export class ApiService {
     });
   }
 
-  // ==================== CATEGORÍAS ====================
-  async obtenerCategorias(): Promise<Categoria[]> {
-    return this.request<Categoria[]>('/categoria/obtener-todos');
-  }
-
-  async obtenerCategoria(id: number): Promise<Categoria> {
-    return this.request<Categoria>(`/categoria/obtener/${id}`);
-  }
-
-  async crearCategoria(categoria: Omit<Categoria, 'Id'>): Promise<Categoria> {
-    return this.request<Categoria>('/categoria/nueva', {
-      method: 'POST',
-      body: JSON.stringify(categoria),
-    });
-  }
-
+  // ==================== CATEGORÍAS (MÉTODOS ADICIONALES) ====================
+  
   async editarCategoria(categoria: Categoria): Promise<Categoria> {
     return this.request<Categoria>('/categoria/editar', {
       method: 'POST',
@@ -364,45 +633,8 @@ export class ApiService {
     });
   }
 
-  // ==================== PERFILES ====================
-  async obtenerPerfiles(): Promise<Perfil[]> {
-    return this.request<Perfil[]>('/perfiles/obtener-todos');
-  }
-
-  async obtenerPerfil(id: number): Promise<Perfil> {
-    return this.request<Perfil>(`/perfiles/obtener/${id}`);
-  }
-
-  async crearPerfil(dto: Omit<Perfil,'Id'>): Promise<Perfil> {
-    return this.request<Perfil>('/perfiles/nuevo', {
-      method: 'POST',
-      body: JSON.stringify(dto),
-    });
-  }
-
-  async editarPerfil(dto: Perfil): Promise<Perfil> {
-    return this.request<Perfil>('/perfiles/editar', {
-      method: 'POST',
-      body: JSON.stringify(dto),
-    });
-  }
-
-  // ==================== MEDIOS DE PAGO ====================
-  async obtenerMediosPago(): Promise<MedioPago[]> {
-    return this.request<MedioPago[]>('/mediospago/obtener-todos');
-  }
-
-  async obtenerMedioPago(id: number): Promise<MedioPago> {
-    return this.request<MedioPago>(`/mediospago/obtener/${id}`);
-  }
-
-  async crearMedioPago(mp: Omit<MedioPago,'Id'>): Promise<MedioPago> {
-    return this.request<MedioPago>('/mediospago/nuevo', {
-      method: 'POST',
-      body: JSON.stringify(mp),
-    });
-  }
-
+  // ==================== MEDIOS DE PAGO (MÉTODOS ADICIONALES) ====================
+  
   async editarMedioPago(mp: MedioPago): Promise<MedioPago> {
     return this.request<MedioPago>('/mediospago/editar', {
       method: 'POST',
@@ -411,6 +643,7 @@ export class ApiService {
   }
 
   // ==================== ESTADOS DE FACTURA ====================
+  
   async obtenerEstadosFactura(): Promise<EstadoFactura[]> {
     return this.request<EstadoFactura[]>('/estados-factura/obtener-todos');
   }
@@ -434,6 +667,7 @@ export class ApiService {
   }
 
   // ==================== TIPOS FACTURA ====================
+  
   async obtenerTiposFactura(): Promise<TipoFactura[]> {
     return this.request<TipoFactura[]>(`/tiposfacturas/obtener-todos`);
   }
@@ -442,36 +676,8 @@ export class ApiService {
     return this.request<TipoFactura>(`/tiposfacturas/obtener/${id}`);
   }
 
-  async crearTipoFactura(dto: Omit<TipoFactura,'Id'>): Promise<TipoFactura> {
-    return this.request<TipoFactura>(`/tiposfacturas/nuevo`, {
-      method: 'POST',
-      body: JSON.stringify(dto),
-    });
-  }
-
-  async editarTipoFactura(dto: TipoFactura): Promise<TipoFactura> {
-    return this.request<TipoFactura>(`/tiposfacturas/editar`, {
-      method: 'POST',
-      body: JSON.stringify(dto),
-    });
-  }
-
-  // ==================== UNIDADES DE MEDIDA ====================
-  async obtenerUnidadesMedida(): Promise<UnidadMedida[]> {
-    return this.request<UnidadMedida[]>('/unidadmedida/obtener-todos');
-  }
-
-  async obtenerUnidadMedida(id: number): Promise<UnidadMedida> {
-    return this.request<UnidadMedida>(`/unidadmedida/obtener/${id}`);
-  }
-
-  async crearUnidadMedida(um: Omit<UnidadMedida,'Id'>): Promise<UnidadMedida> {
-    return this.request<UnidadMedida>('/unidadmedida/nueva', {
-      method: 'POST',
-      body: JSON.stringify(um),
-    });
-  }
-
+  // ==================== UNIDADES DE MEDIDA (MÉTODOS ADICIONALES) ====================
+  
   async editarUnidadMedida(um: UnidadMedida): Promise<UnidadMedida> {
     return this.request<UnidadMedida>('/unidadmedida/editar', {
       method: 'POST',
@@ -479,54 +685,45 @@ export class ApiService {
     });
   }
 
-  // ==================== ALICUOTAS IVA ====================
-  async obtenerAlicuotasIVA(): Promise<AlicuotaIVA[]> {
-    return this.request<AlicuotaIVA[]>('/alicuotaiva/obtener-todas');
+  // ==================== USUARIOS (MÉTODOS ADICIONALES) ====================
+  
+  async obtenerUsuariosPorSucursal(sucursal: string): Promise<Usuario[]> {
+    return this.request<Usuario[]>(`/usuarios/obtener-por-sucursal/${sucursal}`);
   }
 
-  async obtenerAlicuotaIVA(id: number): Promise<AlicuotaIVA> {
-    return this.request<AlicuotaIVA>(`/alicuotaiva/obtener/${id}`);
-  }
-
-  async crearAlicuotaIVA(dto: Omit<AlicuotaIVA,'Id'>): Promise<AlicuotaIVA> {
-    return this.request<AlicuotaIVA>('/alicuotaiva/nueva', {
+  async editarUsuario(usuario: Usuario): Promise<Usuario> {
+    return this.request<Usuario>('/usuarios/editar', {
       method: 'POST',
-      body: JSON.stringify(dto),
+      body: JSON.stringify(usuario),
     });
   }
 
-  async editarAlicuotaIVA(alic: AlicuotaIVA): Promise<AlicuotaIVA> {
-    return this.request<AlicuotaIVA>('/alicuotaiva/editar', {
+  // ==================== VENTAS Y FACTURACIÓN (NUEVOS ENDPOINTS) ====================
+
+  async generarVentaNueva(venta: GenerarVentaDTO): Promise<ApiResponse<{ mensaje: string }>> {
+    return this.request<ApiResponse<{ mensaje: string }>>('/ventas/generar', {
       method: 'POST',
-      body: JSON.stringify(alic),
+      body: JSON.stringify(venta),
     });
   }
 
-  // ==================== EVENTOS LOG ====================
-  async obtenerEventosLog(): Promise<EventoLog[]> {
-    return this.request<EventoLog[]>('/eventos-log/obtener-todos');
-  }
-
-  async obtenerEventoLog(id: number): Promise<EventoLog> {
-    return this.request<EventoLog>(`/eventos-log/obtener/${id}`);
-  }
-
-  async obtenerEventosPorUsuario(idUsuario: number): Promise<EventoLog[]> {
-    return this.request<EventoLog[]>(`/eventos-log/obtener-por-usuario/${idUsuario}`);
-  }
-
-  async obtenerEventosPorModulo(modulo: string): Promise<EventoLog[]> {
-    return this.request<EventoLog[]>(`/eventos-log/obtener-por-modulo/${modulo}`);
-  }
-
-  async obtenerEventosPorFecha(fechaInicio: string, fechaFin: string): Promise<EventoLog[]> {
-    return this.request<EventoLog[]>(`/eventos-log/obtener-por-fecha?fechaInicio=${fechaInicio}&fechaFin=${fechaFin}`);
-  }
-
-  async registrarEvento(evento: Omit<EventoLog, 'Id'>): Promise<EventoLog> {
-    return this.request<EventoLog>('/eventos-log/registrar', {
+  async emitirNota(nota: EmitirNotaDTO): Promise<NotaResponse> {
+    return this.request<NotaResponse>('/ventas/emitir-nota', {
       method: 'POST',
-      body: JSON.stringify(evento),
+      body: JSON.stringify(nota),
+    });
+  }
+
+  async obtenerPdfVenta(id: number): Promise<PdfVentaResponse> {
+    return this.request<PdfVentaResponse>(`/ventas/${id}/pdf`);
+  }
+
+  // ==================== VALIDACIÓN DE CLIENTES (AFIP) ====================
+
+  async validarClienteAfip(datos: ValidarClienteAfipDTO): Promise<Cliente> {
+    return this.request<Cliente>('/cliente/validar-afip', {
+      method: 'POST',
+      body: JSON.stringify(datos),
     });
   }
 }

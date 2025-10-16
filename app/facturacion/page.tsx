@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,21 +14,30 @@ import {
   FileText,
   Filter
 } from "lucide-react"
-import { mockInvoices } from "@/lib/mock-data"
 import { formatCurrency, formatDate, invoiceStatusColors } from "@/lib/utils"
 import Link from "next/link"
+import { useFacturas } from "@/hooks/use-api"
+import type { Factura } from "@/lib/api-types"
 
 export default function FacturacionPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedType, setSelectedType] = useState<string>("all")
-  const [invoices] = useState(mockInvoices)
+  const { facturas, loading, error, cargarFacturas } = useFacturas()
 
-  const filteredInvoices = invoices.filter(invoice => {
-    const matchesSearch = 
-      invoice.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      invoice.client.businessName.toLowerCase().includes(searchTerm.toLowerCase())
+  useEffect(() => {
+    cargarFacturas()
+  }, [])
+
+  const filteredInvoices = (facturas || []).filter((invoice: Factura) => {
+    const numero = (invoice as any).numeroComprobante || '';
+    const clienteNombre = (invoice as any).cliente?.razon_social || '';
+    const tipoFactura = (invoice as any).tipoFactura?.codigo || '';
     
-    const matchesType = selectedType === "all" || invoice.type === selectedType
+    const matchesSearch = 
+      numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      clienteNombre.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    const matchesType = selectedType === "all" || tipoFactura === selectedType
     
     return matchesSearch && matchesType
   })
@@ -52,7 +61,7 @@ export default function FacturacionPage() {
     }
   }
 
-  const totalRevenue = filteredInvoices.reduce((sum, invoice) => sum + invoice.total, 0)
+  const totalRevenue = filteredInvoices.reduce((sum: number, invoice: Factura) => sum + ((invoice as any).total || 0), 0)
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -92,7 +101,7 @@ export default function FacturacionPage() {
           </CardHeader>
           <CardContent>
             <div className="text-xl sm:text-2xl font-bold">
-              {invoices.filter(i => i.type === 'A').length}
+              {(facturas || []).filter((i: Factura) => (i as any).tipoFactura?.codigo === 'A').length}
             </div>
             <p className="text-xs text-muted-foreground">
               Emitidas
@@ -107,7 +116,7 @@ export default function FacturacionPage() {
           </CardHeader>
           <CardContent>
             <div className="text-xl sm:text-2xl font-bold">
-              {invoices.filter(i => i.type === 'B').length}
+              {(facturas || []).filter((i: Factura) => (i as any).tipoFactura?.codigo === 'B').length}
             </div>
             <p className="text-xs text-muted-foreground">
               Emitidas
@@ -122,7 +131,7 @@ export default function FacturacionPage() {
           </CardHeader>
           <CardContent>
             <div className="text-xl sm:text-2xl font-bold">
-              {invoices.filter(i => i.type === 'NC').length}
+              {(facturas || []).filter((i: Factura) => (i as any).tipoFactura?.codigo === 'NC').length}
             </div>
             <p className="text-xs text-muted-foreground">
               Emitidas
@@ -195,51 +204,65 @@ export default function FacturacionPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredInvoices.map((invoice) => (
-                  <TableRow key={invoice.id}>
-                    <TableCell className="hidden sm:table-cell font-medium">
-                      {invoice.number}
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <Badge variant="outline" className="text-xs">
-                        {getInvoiceTypeLabel(invoice.type)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{invoice.client.businessName}</p>
-                        <div className="sm:hidden mt-1">
-                          <p className="text-sm text-gray-600">{invoice.number}</p>
-                          <Badge variant="outline" className="text-xs mr-2">
-                            {getInvoiceTypeLabel(invoice.type)}
-                          </Badge>
-                          <span className="text-sm text-gray-600">{formatCurrency(invoice.total)}</span>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      {formatDate(invoice.createdAt)}
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell font-medium">
-                      {formatCurrency(invoice.total)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={invoiceStatusColors[invoice.status]}>
-                        {getStatusLabel(invoice.status)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex space-x-2">
-                        <Button size="sm" variant="outline">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="outline">
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      </div>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8">
+                      Cargando facturas...
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : filteredInvoices.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                      No se encontraron facturas
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredInvoices.map((invoice: Factura) => (
+                    <TableRow key={invoice.id}>
+                      <TableCell className="hidden sm:table-cell font-medium">
+                        {(invoice as any).numeroComprobante || 'N/A'}
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        <Badge variant="outline" className="text-xs">
+                          {getInvoiceTypeLabel((invoice as any).tipoFactura?.codigo || '')}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{(invoice as any).cliente?.razon_social || 'Sin cliente'}</p>
+                          <div className="sm:hidden mt-1">
+                            <p className="text-sm text-gray-600">{(invoice as any).numeroComprobante || 'N/A'}</p>
+                            <Badge variant="outline" className="text-xs mr-2">
+                              {getInvoiceTypeLabel((invoice as any).tipoFactura?.codigo || '')}
+                            </Badge>
+                            <span className="text-sm text-gray-600">{formatCurrency((invoice as any).total || 0)}</span>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        {(invoice as any).fecha ? formatDate((invoice as any).fecha) : 'N/A'}
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell font-medium">
+                        {formatCurrency((invoice as any).total || 0)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={invoiceStatusColors[(invoice as any).estadoFactura?.codigo || 'draft']}>
+                          {getStatusLabel((invoice as any).estadoFactura?.codigo || 'draft')}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex space-x-2">
+                          <Button size="sm" variant="outline">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline">
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>

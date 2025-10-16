@@ -43,17 +43,8 @@ export default function ProductosPage() {
   const { productos, loading: loadingProductos, error: errorProductos, cargarProductos, cargarProducto, crearProducto, editarProducto, actualizarEstadoProducto } = useProductos()
   const { categorias, loading: loadingCategorias, error: errorCategorias, cargarCategorias } = useCategorias()
 
-  // Log cambios en la lista de productos y su clasificación
   useEffect(() => {
-    if (productos) {
-      const activosCnt = productos.filter(p => p.stock > 0).length
-      const sinStockCnt = productos.filter(p => p.stock === 0).length
-      console.log('[ProductosPage] Estado listas -> activos:', activosCnt, 'sinStock:', sinStockCnt)
-      // Log RowVersion de productos sin stock para debug
-      productos.filter(p => p.stock === 0).forEach(p => {
-        console.log(`[DEBUG] Producto ${p.Id} sin stock - RowVersion: ${p.RowVersion}`)
-      })
-    }
+    // Efecto para observar cambios en productos
   }, [productos])
   
   const handleInput = (field: string) => (e: any) => {
@@ -61,7 +52,6 @@ export default function ProductosPage() {
   }
 
   const handleEditProduct = (product: Producto) => {
-    console.log('[ProductosPage] Editando producto directo (sin refetch)', product.Id)
     setEditingProduct(product)
     setForm({
       codigo: product.codigo,
@@ -78,7 +68,6 @@ export default function ProductosPage() {
   const handleSaveProducto = async () => {
     try {
       if (editingProduct) {
-        console.log('[ProductosPage] Editando producto', editingProduct.Id)
         const markDelete = Number(form.stock) === 0;
         const updatePayload: any = {
           ...editingProduct, // incluye RowVersion necesario
@@ -92,16 +81,12 @@ export default function ProductosPage() {
           fechaLog: new Date().toISOString(),
           userLog: 'admin@antonionovoa.com'
         }
-        console.log('[ProductosPage] Payload editar', updatePayload)
         await editarProducto(updatePayload)
-        await actualizarEstadoProducto({ id: editingProduct.Id, isdelete: markDelete, userLog: 'admin@antonionovoa.com' } as any)
-        console.log('[ProductosPage] Estado actualizado isdelete', markDelete)
-        // Refrescar lista inmediatamente para tener RowVersion actualizados
+        await actualizarEstadoProducto({ id: editingProduct.id, isdelete: markDelete, userLog: 'admin@antonionovoa.com' } as any)
         await cargarProductos()
       } else {
-        console.log('[ProductosPage] Creando producto', form)
         const markDeleteCreate = Number(form.stock) === 0;
-        const created = await crearProducto({
+        const response = await crearProducto({
           idCategoria: Number(form.idCategoria),
           codigo: form.codigo,
           nombre: form.nombre,
@@ -112,10 +97,9 @@ export default function ProductosPage() {
           fechaCreacion: new Date().toISOString(),
           userLog: 'admin@antonionovoa.com'
         } as any)
-        console.log('[ProductosPage] Producto creado id', created.Id)
-        if (markDeleteCreate) {
-          await actualizarEstadoProducto({ id: created.Id, isdelete: true, userLog: 'admin@antonionovoa.com' } as any)
-          // Refrescar lista después de actualizar estado
+        const created = (response as any).data || response;
+        if (markDeleteCreate && (created as any).id) {
+          await actualizarEstadoProducto({ id: (created as any).id, isdelete: true, userLog: 'admin@antonionovoa.com' } as any)
           await cargarProductos()
         }
       }
@@ -127,13 +111,11 @@ export default function ProductosPage() {
       setForm({ codigo:"", nombre:"", descripcion:"", precio:"", stock:"", stockMin:"", idCategoria:"" })
       setEditingProduct(null)
     } catch (err) {
-      console.error('[ProductosPage] Error al guardar producto', err)
+      // Error al guardar producto
     }
   }
 
-  // Cargar datos al montar el componente
   useEffect(() => {
-    console.log('[ProductosPage] Montaje: solicitando datos');
     cargarProductos()
     cargarCategorias()
   }, [])
@@ -277,7 +259,7 @@ export default function ProductosPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {categorias?.map((category) => (
-                      <SelectItem key={category.Id} value={category.Id.toString()}>
+                      <SelectItem key={category.id} value={category.id.toString()}>
                         {category.nombre}
                       </SelectItem>
                     ))}
@@ -327,7 +309,7 @@ export default function ProductosPage() {
               <SelectContent>
                 <SelectItem value="all">Todas</SelectItem>
                 {categorias?.map((cat) => (
-                  <SelectItem key={cat.Id} value={cat.Id.toString()}>{cat.nombre}</SelectItem>
+                  <SelectItem key={cat.id} value={cat.id.toString()}>{cat.nombre}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -365,9 +347,9 @@ export default function ProductosPage() {
               <TableBody>
                 {activos.map((product) => {
                   const stockStatus = getStockStatus(product.stock)
-                  const categoria = categorias?.find(cat => cat.Id === product.idCategoria)
+                  const categoria = categorias?.find(cat => cat.id === product.idCategoria)
                   return (
-                    <TableRow key={product.Id}>
+                    <TableRow key={product.id}>
                       <TableCell className="hidden sm:table-cell font-medium">
                         {product.codigo}
                       </TableCell>
@@ -464,10 +446,10 @@ export default function ProductosPage() {
                 </TableHeader>
                 <TableBody>
                   {sinStock.map(p => (
-                    <TableRow key={p.Id}>
+                    <TableRow key={p.id}>
                       <TableCell>{p.codigo}</TableCell>
                       <TableCell>{p.nombre}</TableCell>
-                      <TableCell>{categorias?.find(c=>c.Id===p.idCategoria)?.nombre}</TableCell>
+                      <TableCell>{categorias?.find(c=>c.id===p.idCategoria)?.nombre}</TableCell>
                       <TableCell>{formatCurrency(p.precio)}</TableCell>
                       <TableCell>
                         <Button size="sm" variant="outline" onClick={() => handleEditProduct(p)}>

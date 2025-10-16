@@ -20,13 +20,13 @@ import {
 } from "lucide-react"
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: Home },
-  { name: "Productos", href: "/productos", icon: Package },
-  { name: "Clientes", href: "/clientes", icon: Users },
-  { name: "Facturación", href: "/facturacion", icon: FileText },
-  { name: "Stock", href: "/stock", icon: ShoppingCart },
-  { name: "Reportes", href: "/reportes", icon: BarChart3 },
-  { name: "Configuración", href: "/configuracion", icon: Settings },
+  { name: "Dashboard", href: "/", icon: Home, disabled: false },
+  { name: "Productos", href: "/productos", icon: Package, disabled: false },
+  { name: "Clientes", href: "/clientes", icon: Users, disabled: true },
+  { name: "Facturación", href: "/facturacion", icon: FileText, disabled: false },
+  { name: "Stock", href: "/stock", icon: ShoppingCart, disabled: false },
+  { name: "Reportes", href: "/reportes", icon: BarChart3, disabled: false },
+  { name: "Configuración", href: "/configuracion", icon: Settings, disabled: false },
 ]
 
 export function MobileNavbar() {
@@ -67,6 +67,20 @@ export function MobileNavbar() {
               <nav className="flex-1 space-y-1 px-3 py-4 w-full overflow-y-auto">
                 {navigation.map((item) => {
                   const isActive = pathname === item.href
+                  
+                  if (item.disabled) {
+                    return (
+                      <div
+                        key={item.name}
+                        className="group flex items-center px-3 py-3 text-sm font-medium rounded-md cursor-not-allowed opacity-50 w-full"
+                      >
+                        <item.icon className="mr-3 h-5 w-5 flex-shrink-0 text-gray-400" />
+                        <span className="text-gray-500 truncate">{item.name}</span>
+                        <span className="ml-auto text-xs text-gray-400 italic">Próximamente</span>
+                      </div>
+                    )
+                  }
+                  
                   return (
                     <Link
                       key={item.name}

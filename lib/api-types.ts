@@ -1,61 +1,235 @@
 // Tipos de datos según la API del backend
 
+// ==================== BASE ====================
+export interface EntidadBase {
+  id: number;
+  isDeleted: boolean;
+  rowVersion?: Uint8Array;
+  fechaCreacion?: string;
+  userLog?: string;
+  fechaLog?: string;
+}
+
+// ==================== AUTENTICACIÓN ====================
 export interface LoginDTO {
   correo: string;
   clave: string;
 }
 
-export interface Usuario {
-  Id: number;
+// ==================== USUARIOS ====================
+export interface Usuario extends EntidadBase {
   nombre: string;
+  clave: string;
   correo: string;
-  clave?: string;
-  telefono?: string;
   idPerfil: number;
-  activo: boolean;
-  sucursal: string;
-  ultimoAcceso: string | null;
-  fechaCreacion?: string;
 }
 
-export interface Producto {
-  Id: number;
+// ==================== PRODUCTOS ====================
+export interface Producto extends EntidadBase {
   idCategoria: number;
+  idUnidadMedida: number;
   codigo: string;
   nombre: string;
   precio: number;
   stock: number;
   stockMinimo: number;
-  descripcion?: string;
+  descripcion: string;
   categoria?: Categoria;
-  IsDeleted?: boolean;
-  RowVersion?: string;
+  unidadMedida?: UnidadMedida;
 }
 
-export interface Categoria {
-  Id: number;
+// ==================== CATEGORÍAS ====================
+export interface Categoria extends EntidadBase {
   nombre: string;
-  descripcion?: string;
-  activa: boolean;
-  fechaCreacion?: string;
 }
 
+// ==================== CLIENTES ====================
 export interface Cliente {
-  Id: number;
-  apellidoYnombre: string;
-  email: string;
-  telefono: string;
+  documento_tipo: string;
+  documento_nro: string;
+  razon_social: string;
   direccion: string;
   localidad: string;
   provincia: string;
-  codigoPostal: string;
-  cuit?: string;
-  tipoDocumento: string; // CUIT, DNI, CUIL, etc.
-  numeroDocumento: string;
-  condicionIva?: string;
-  fechaCreacion?: string;
+  codigopostal: string;
+  condicion_iva: string;
 }
 
+export interface ValidarClienteAfipDTO {
+  documento_nro: string;
+  documento_tipo: string; // Ej: "96" para CUIT, "80" para CUIL
+}
+
+// ==================== VENTAS ====================
+export interface VentaDetalle {
+  idProducto: number;
+  cantidad: number;
+  precioUnitario: number;
+  subtotal: number;
+  descuento: number;
+  total: number;
+}
+
+export interface GenerarVentaDTO {
+  idTipoComprobante: number;
+  idMedioPago: number;
+  idMoneda: number;
+  cliente: Cliente;
+  fecha: string;
+  total: number;
+  detalles: VentaDetalle[];
+  log: {
+    fechaLog: string;
+    userLog: string;
+  };
+}
+
+export interface Venta extends EntidadBase {
+  idCliente: number;
+  idUsuario: number;
+  idMedioPago: number;
+  fechaVenta: string;
+  totalVenta: number;
+  estadoVenta: 'PENDIENTE' | 'COMPLETADA' | 'CANCELADA';
+  sucursal: string;
+  observaciones: string;
+  cliente?: Cliente;
+  usuario?: Usuario;
+  detalle?: VentaDetalle[];
+}
+
+// ==================== FACTURAS ====================
+export interface Factura extends EntidadBase {
+  idVenta: number;
+  idEstado: number;
+  idMoneda: number;
+  idMedioPago: number;
+  idTipoComprobante: number;
+  cae: string;
+  vencimientoCae: string;
+  numeroComprobante: string;
+  comprobanteCompleto: string;
+  puntoVenta: string;
+  pdfUrl: string;
+  mensajeAfip: string;
+}
+
+export interface EmitirNotaDTO {
+  idTipo: number;
+  idVenta: number;
+  motivo: string;
+  log: {
+    fechaLog: string;
+    userLog: string;
+  };
+}
+
+export interface NotaResponse {
+  error: string;
+  rta: string;
+  cae: string;
+  vencimiento_cae: string;
+  comprobante_nro: string;
+  comprobante_nro_completo: string;
+  punto_venta: string;
+  pdf: string;
+}
+
+export interface PdfVentaResponse {
+  idVenta: number;
+  pdfUrl: string;
+  mensaje: string;
+}
+
+// ==================== STOCK ====================
+export interface ActualizarStockDTO {
+  nuevoStock: number;
+}
+
+export interface AjustarStockDTO {
+  cantidad: number; // Positivo para entrada, negativo para salida
+  motivo: string;
+}
+
+export interface AjustarStockResponse {
+  success: boolean;
+  message: string;
+  data: {
+    stockAnterior: number;
+    ajuste: number;
+    stockNuevo: number;
+    motivo: string;
+  };
+}
+
+export interface ProductoStockBajo {
+  id: number;
+  codigo: string;
+  nombre: string;
+  stockActual: number;
+  stockMinimo: number;
+  diferencia: number;
+}
+
+export interface ReporteStock {
+  totalProductos: number;
+  productosConStock: number;
+  productosSinStock: number;
+  productosStockBajo: number;
+  valorTotalInventario: number;
+  stockPromedio: number;
+}
+
+export interface ActualizarStockMinimoDTO {
+  nuevoStockMinimo: number;
+}
+
+export interface ActualizarStockMinimoResponse {
+  success: boolean;
+  message: string;
+  data: {
+    stockMinimoAnterior: number;
+    stockMinimoNuevo: number;
+  };
+}
+
+// ==================== MEDIOS DE PAGO ====================
+export interface MedioPago extends EntidadBase {
+  nombre: string;
+  prefijo: string;
+}
+
+// ==================== MONEDAS ====================
+export interface Moneda extends EntidadBase {
+  nombre: string;
+  prefijo: string;
+}
+
+// ==================== TIPOS DE COMPROBANTE ====================
+export interface TipoComprobante extends EntidadBase {
+  nombre: string;
+  prefijo: string;
+}
+
+// ==================== PERFILES ====================
+export interface Perfil extends EntidadBase {
+  nombre: string;
+}
+
+// ==================== UNIDADES DE MEDIDA ====================
+export interface UnidadMedida extends EntidadBase {
+  codigo: string;
+  descripcion: string;
+  activo: boolean;
+}
+
+// ==================== CONFIGURACIONES ====================
+export interface Configuracion extends EntidadBase {
+  nombre: string;
+  valor: string;
+}
+
+// ==================== TIPOS ADICIONALES (COMPATIBILIDAD) ====================
 export interface VentaDTO {
   idCliente: number;
   idUsuario: number;
@@ -63,33 +237,9 @@ export interface VentaDTO {
   fechaVenta: string;
   totalVenta: number;
   estadoVenta: 'PENDIENTE' | 'COMPLETADA' | 'CANCELADA';
-  sucursal: 'PINO' | 'MELAMINA';
-  observaciones: string;
-  detalle: VentaDetalle[];
-}
-
-export interface VentaDetalle {
-  idProducto: number;
-  cantidad: number;
-  precioUnitario: number;
-  descuento: number;
-  total: number;
-}
-
-export interface Venta {
-  Id: number;
-  idCliente: number;
-  idUsuario: number;
-  idMedioPago: number;
-  fechaVenta: string;
-  totalVenta: number;
-  estadoVenta: string;
   sucursal: string;
   observaciones: string;
-  cliente?: Cliente;
-  usuario?: Usuario;
-  medioPago?: MedioPago;
-  detalle?: VentaDetalle[];
+  detalle: VentaDetalle[];
 }
 
 export interface FacturaDTO {
@@ -103,40 +253,7 @@ export interface FacturaDTO {
   totalIva: number;
   totalFactura: number;
   observaciones?: string;
-  detalle?: FacturaDetalle[];
-}
-
-export interface FacturaDetalle {
-  idProducto: number;
-  cantidad: number;
-  precioUnitario: number;
-  descuento: number;
-  total: number;
-}
-
-export interface Tributo {
-  idTipoTributo: number;
-  baseImponible: number;
-  alicuota: number;
-  importe: number;
-}
-
-export interface Factura {
-  Id: number;
-  idCliente: number;
-  idUsuario: number;
-  idTipoFactura: number;
-  idEstadoFactura: number;
-  fechaFactura: string;
-  numeroFactura: string;
-  subtotal: number;
-  totalIva: number;
-  totalFactura: number;
-  observaciones?: string;
-  cliente?: Cliente;
-  estadoFactura?: EstadoFactura;
-  tipoFactura?: TipoComprobante;
-  detalle?: FacturaDetalle[];
+  detalle?: VentaDetalle[];
 }
 
 export interface StockMovimiento {
@@ -163,25 +280,12 @@ export interface NuevoMovimientoDTO {
   userLog: string;
 }
 
-export interface MedioPago {
-  Id: number;
-  nombre: string;
-  descripcion?: string;
-  activo: boolean;
-  fechaCreacion?: string;
-}
-
 export interface EstadoFactura {
   Id: number;
   nombre: string;
   descripcion?: string;
   activo: boolean;
   fechaCreacion?: string;
-}
-
-export interface TipoComprobante {
-  Id: number;
-  nombre: string;
 }
 
 export interface TipoFactura {
@@ -193,24 +297,17 @@ export interface TipoFactura {
   fechaCreacion?: string;
 }
 
-export interface Perfil {
+export interface Sucursal {
   Id: number;
   nombre: string;
-  descripcion?: string;
-  activo: boolean;
-  fechaCreacion?: string;
-}
-
-export interface UnidadMedida {
-  Id: number;
-  nombre: string;
-  abreviatura: string;
-  descripcion?: string;
+  direccion: string;
+  telefono: string;
+  email: string;
+  tipoProducto: string;
   activa: boolean;
   fechaCreacion?: string;
 }
 
-// ==================== ALICUOTAS IVA ====================
 export interface AlicuotaIVA {
   Id: number;
   porcentaje: number;
@@ -238,28 +335,14 @@ export interface EventoLog {
   usuario?: Usuario;
 }
 
-export interface FacturaResponse {
+// ==================== RESPUESTAS COMUNES ====================
+export interface ApiResponse<T> {
   success: boolean;
-  data?: any;
+  data?: T;
   message?: string;
 }
 
-// ==================== PRODUCTOS ====================
-// DTO para actualizar stock de un producto
-export interface ActualizarStockDTO {
-  id: number;
-  nuevoStock: number;
-  userLog: string;
-}
-
-// ==================== SUCURSALES ====================
-export interface Sucursal {
-  Id: number;
-  nombre: string;
-  direccion: string;
-  telefono: string;
-  email: string;
-  tipoProducto: string; // General, etc.
-  activa: boolean;
-  fechaCreacion?: string;
+export interface ApiErrorResponse {
+  success: false;
+  message: string;
 }

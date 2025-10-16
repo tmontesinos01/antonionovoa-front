@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,39 +15,50 @@ import {
   Package,
   Users
 } from "lucide-react"
-import { mockInvoices, mockProducts, mockClients, mockStockMovements } from "@/lib/mock-data"
-import { Invoice, Product, Client } from "@/lib/types"
 import { formatCurrency, formatDate } from "@/lib/utils"
+import { useProductos } from "@/hooks/use-api"
+// import { useClientes } from "@/hooks/use-api"
+import { useFacturas } from "@/hooks/use-api"
+import type { Producto, Cliente, Factura } from "@/lib/api-types"
 
 export default function ReportesPage() {
-  const [invoices] = useState<Invoice[]>(mockInvoices)
-  const [products] = useState<Product[]>(mockProducts)
-  const [clients] = useState<Client[]>(mockClients)
-  const [movements] = useState(mockStockMovements)
+  const { productos, loading: loadingProductos, cargarProductos } = useProductos()
+  // const { clientes, loading: loadingClientes, cargarClientes } = useClientes()
+  const { facturas, loading: loadingFacturas, cargarFacturas } = useFacturas()
+
+  useEffect(() => {
+    cargarProductos()
+    // cargarClientes()
+    cargarFacturas()
+  }, [])
 
   // Cálculos de estadísticas
-  const totalRevenue = invoices.reduce((sum: number, invoice: Invoice) => sum + invoice.total, 0)
-  const totalInvoices = invoices.length
+  const totalRevenue = (facturas || []).reduce((sum: number, factura: any) => sum + (factura.total || 0), 0)
+  const totalInvoices = (facturas || []).length
   const averageInvoiceValue = totalInvoices > 0 ? totalRevenue / totalInvoices : 0
   
-  const topProducts = products
-    .sort((a: Product, b: Product) => (b.price * b.stock) - (a.price * a.stock))
+  const topProducts = (productos || [])
+    .sort((a: Producto, b: Producto) => (b.precio * b.stock) - (a.precio * a.stock))
     .slice(0, 5)
   
-  const topClients = clients
-    .map((client: Client) => {
-      const clientInvoices = invoices.filter((inv: Invoice) => inv.clientId === client.id)
-      const totalSpent = clientInvoices.reduce((sum: number, inv: Invoice) => sum + inv.total, 0)
-      return { ...client, totalSpent, invoiceCount: clientInvoices.length }
-    })
-    .sort((a, b) => b.totalSpent - a.totalSpent)
-    .slice(0, 5)
+  // const topClients = (clientes || [])
+  //   .map((client: any) => {
+  //     const clientInvoices = (facturas || []).filter((inv: any) => inv.cliente?.id === client.id)
+  //     const totalSpent = clientInvoices.reduce((sum: number, inv: any) => sum + (inv.total || 0), 0)
+  //     return { ...client, totalSpent, invoiceCount: clientInvoices.length }
+  //   })
+  //   .sort((a, b) => b.totalSpent - a.totalSpent)
+  //   .slice(0, 5)
 
-  const monthlyRevenue = invoices.reduce((acc: Record<string, number>, invoice: Invoice) => {
-    const month = new Date(invoice.createdAt).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
-    acc[month] = (acc[month] || 0) + invoice.total
+  const monthlyRevenue = (facturas || []).reduce((acc: Record<string, number>, factura: any) => {
+    if (factura.fecha) {
+      const month = new Date(factura.fecha).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
+      acc[month] = (acc[month] || 0) + (factura.total || 0)
+    }
     return acc
   }, {} as Record<string, number>)
+
+  const loading = loadingProductos || loadingFacturas // || loadingClientes
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -105,29 +116,29 @@ export default function ReportesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-xl sm:text-2xl font-bold">
-              {formatCurrency(products.reduce((sum, p) => sum + (p.price * p.stock), 0))}
+              {formatCurrency((productos || []).reduce((sum, p) => sum + (p.precio * p.stock), 0))}
             </div>
             <p className="text-xs text-muted-foreground">
-              {products.length} productos
+              {(productos || []).length} productos
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        {/* <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Clientes Activos</CardTitle>
             <Users className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{clients.length}</div>
+            <div className="text-xl sm:text-2xl font-bold">{(clientes || []).length}</div>
             <p className="text-xs text-muted-foreground">
               Registrados
             </p>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {/* Productos más valiosos */}
         <Card>
           <CardHeader>
@@ -152,18 +163,18 @@ export default function ReportesPage() {
                     <TableRow key={product.id}>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{product.name}</p>
-                          <p className="text-sm text-gray-500">{product.code}</p>
+                          <p className="font-medium">{product.nombre}</p>
+                          <p className="text-sm text-gray-500">{product.codigo}</p>
                           <div className="sm:hidden mt-1">
                             <p className="text-xs text-gray-600">Stock: {product.stock}</p>
-                            <p className="text-xs text-gray-600">{formatCurrency(product.price)} c/u</p>
+                            <p className="text-xs text-gray-600">{formatCurrency(product.precio)} c/u</p>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell">{product.stock}</TableCell>
-                      <TableCell className="hidden sm:table-cell">{formatCurrency(product.price)}</TableCell>
+                      <TableCell className="hidden sm:table-cell">{formatCurrency(product.precio)}</TableCell>
                       <TableCell className="font-medium">
-                        {formatCurrency(product.price * product.stock)}
+                        {formatCurrency(product.precio * product.stock)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -174,7 +185,7 @@ export default function ReportesPage() {
         </Card>
 
         {/* Mejores clientes */}
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle>Mejores Clientes</CardTitle>
             <CardDescription>
@@ -192,13 +203,13 @@ export default function ReportesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {topClients.map((client) => (
+                  {topClients.map((client: any) => (
                     <TableRow key={client.id}>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{client.businessName}</p>
+                          <p className="font-medium">{client.razon_social || 'Sin nombre'}</p>
                           <p className="text-sm text-gray-500">
-                            {client.documentType}: {client.documentNumber}
+                            {client.documento_tipo}: {client.documento_nro}
                           </p>
                           <div className="sm:hidden mt-1">
                             <p className="text-xs text-gray-600">{client.invoiceCount} facturas</p>
@@ -215,7 +226,7 @@ export default function ReportesPage() {
               </Table>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
 
       {/* Ingresos por mes */}
@@ -233,15 +244,15 @@ export default function ReportesPage() {
                 <div>
                   <p className="font-medium capitalize">{month}</p>
                   <p className="text-sm text-gray-500">
-                    {invoices.filter(inv => 
-                      new Date(inv.createdAt).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }) === month
+                    {(facturas || []).filter((inv: any) => 
+                      inv.fecha && new Date(inv.fecha).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }) === month
                     ).length} facturas
                   </p>
                 </div>
                 <div className="text-right">
                   <p className="text-2xl font-bold">{formatCurrency(revenue)}</p>
                   <Badge variant="outline" className="text-xs">
-                    {((revenue / totalRevenue) * 100).toFixed(1)}% del total
+                    {totalRevenue > 0 ? ((revenue / totalRevenue) * 100).toFixed(1) : 0}% del total
                   </Badge>
                 </div>
               </div>
@@ -250,48 +261,13 @@ export default function ReportesPage() {
         </CardContent>
       </Card>
 
-      {/* Resumen de movimientos de stock */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Resumen de Movimientos de Stock</CardTitle>
-          <CardDescription>
-            Últimos movimientos de entrada y salida
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Producto</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Cantidad</TableHead>
-                <TableHead>Motivo</TableHead>
-                <TableHead>Fecha</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {movements.slice(0, 10).map((movement) => (
-                <TableRow key={movement.id}>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{movement.product.name}</p>
-                      <p className="text-sm text-gray-500">{movement.product.code}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={movement.type === 'in' ? 'default' : 'secondary'}>
-                      {movement.type === 'in' ? 'Entrada' : 'Salida'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="font-medium">{movement.quantity}</TableCell>
-                  <TableCell>{movement.reason}</TableCell>
-                  <TableCell>{formatDate(movement.createdAt)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {loading && (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-gray-500">Cargando datos...</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
-} 
+}
